@@ -1,8 +1,8 @@
 class MoviesController < ApplicationController
 
-  def movie_params
-    params.require(:movie).permit(:title, :rating, :description, :release_date)
-  end
+  # def movie_params
+  #   params.require(:movie).permit(:title, :rating, :description, :release_date)
+  # end
 
   def show
     id = params[:id] # retrieve movie ID from URI route
@@ -12,10 +12,42 @@ class MoviesController < ApplicationController
 
   def index
     @movies = Movie.all
+    
+    if params[:sort].nil? && params[:ratings].nil? &&
+        (!session[:sort].nil? || !session[:ratings].nil?)
+      redirect_to movies_path(:sort => session[:sort], :ratings => session[:ratings])
+    end
+
+    @sort = params[:sort]
+    @ratings = params[:ratings] 
+    if @ratings.nil?
+      ratings = Movie.ratings 
+    else
+      ratings = @ratings.keys
+    end
+
+     @all_ratings = Movie.ratings.inject(Hash.new) do |all_ratings, rating|
+           all_ratings[rating] = @ratings.nil? ? false : @ratings.has_key?(rating) 
+           all_ratings
+     end
+      
+    if !@sort.nil?
+      begin
+        @movies = Movie.order("#{@sort} ASC").find_all_by_rating(ratings)
+      rescue ActiveRecord::StatementInvalid
+        flash[:warning] = "Movies cannot be sorted by #{@sort}."
+        @movies = Movie.find_all_by_rating(ratings)
+      end
+    else
+      @movies = Movie.find_all_by_rating(ratings)
+    end
+
+    session[:sort] = @sort
+    session[:ratings] = @ratings
   end
 
   def new
-    # default: render 'new' template
+    session.clear
   end
 
   def create
